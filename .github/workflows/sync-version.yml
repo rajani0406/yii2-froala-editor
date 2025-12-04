@@ -13,24 +13,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo
+      # -----------------------------
+      # Checkout repository
+      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Extract incoming version
+      # -----------------------------
+      # Read incoming version
+      # -----------------------------
       - name: Set VERSION from dispatch event
         run: |
           echo "VERSION=${{ github.event.client_payload.version }}" >> $GITHUB_ENV
+          echo "Incoming version: $VERSION"
 
-      # Read local version
+      # -----------------------------
+      # Read local version from composer.json
+      # -----------------------------
       - name: Read current version
         id: local
         run: |
-          CURRENT=$(jq -r '.version' package.json)
+          CURRENT=$(jq -r '.version' composer.json)
           echo "CURRENT_VERSION=$CURRENT" >> $GITHUB_ENV
-          echo "Current: $CURRENT | Incoming: $VERSION"
+          echo "Local version: $CURRENT | Incoming: $VERSION"
 
-      # Compare
+      # -----------------------------
+      # Skip if versions match
+      # -----------------------------
       - name: Check if version is different
         run: |
           if [ "$VERSION" = "$CURRENT_VERSION" ]; then
@@ -38,42 +47,47 @@ jobs:
             exit 0
           fi
 
+      # -----------------------------
       # Create feature branch
+      # -----------------------------
       - name: Create new branch
         run: |
           BRANCH="sync-version-v${VERSION}"
           git checkout -b "$BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
-      # Update version in files
-      - name: Update version
+      # -----------------------------
+      # Update composer.json ONLY
+      # -----------------------------
+      - name: Update composer.json
         run: |
-          jq ".version = \"$VERSION\"" package.json > tmp.json && mv tmp.json package.json
+          jq ".version = \"$VERSION\"" composer.json > tmp.json
+          mv tmp.json composer.json
 
-          if [ -f "bower.json" ]; then
-            jq ".version = \"$VERSION\"" bower.json > tmp2.json && mv tmp2.json bower.json
-          fi
-
-      # Commit + push
+      # -----------------------------
+      # Commit and Push
+      # -----------------------------
       - name: Commit and Push
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "ci-bot@github.com"
 
-          git add .
+          git add composer.json
           git commit -m "chore: sync version to v${VERSION} (auto-sync)"
           git push origin "$BRANCH"
 
+      # -----------------------------
       # Create Pull Request
+      # -----------------------------
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.DISPATCH }}  # Or GITHUB_TOKEN if no PAT needed
-          commit-message: "chore: sync version to v${{ env.VERSION }} (auto-sync)"
+          token: ${{ secrets.DISPATCH }}  # Can use GITHUB_TOKEN if repo is in same org
+          commit-message: ""
           title: "Sync version to v${{ env.VERSION }}"
           body: |
             Auto-synced version update from **main repository**.
 
-            New version: **v${{ env.VERSION }}**
+            Updated version to **v${{ env.VERSION }}** in composer.json.
           branch: ${{ env.BRANCH }}
           base: main
