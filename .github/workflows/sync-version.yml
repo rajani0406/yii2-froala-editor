@@ -69,5 +69,23 @@ jobs:
           git add composer.json
           git commit -m "chore: sync version to v${VERSION} (release: yes)"
           git push origin "$BRANCH"
+          
+   # ----------------------------
+      # Create Pull Request
+      # ----------------------------
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Sync version to v${{ env.VERSION }}"
+          body: |
+            Auto-synced update from **Main Repo**
 
+            **Updated:**
+            - composer.json
+            - CHANGELOG.md
+
+            **New Version:** v${{ env.VERSION }}
+          branch: ${{ env.BRANCH }}
+          base: main
       
